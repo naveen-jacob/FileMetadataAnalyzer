@@ -21,9 +21,11 @@ struct WAV;
 struct TXT;
 struct UNKNOWN;
 
+// SIGNATURE
 constexpr uint8_t PNGSIGNATURE[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
 constexpr char WAVSIGNATURE[] = {0x52, 0x49, 0x46, 0x46};
 
+// PNG HEADER STRUCTURE
 struct PNG_IHDR {
     char width[4];
     char height[4];
@@ -40,6 +42,7 @@ struct MP4_FTYP {
     char compatibleBrands[8];
 };
 
+// WAV HEADER STRUCTURE
 struct WAV_Metadata {
     char channels[2];
     char sampleRate[4];
@@ -48,33 +51,41 @@ struct WAV_Metadata {
     char bitDepth[2];
 };
 
+// CONCEPT
 template<typename T>
-std::unordered_map<std::string,std::string> analyzeBasic(const std::filesystem::path& filepath) {
-    std::unordered_map<std::string,std::string> basicMetadata;
+concept SUPPORTED_FORMAT = std::same_as<T, PNG> or
+                     std::same_as<T, WAV> or
+                     std::same_as<T, MP4> or
+                     std::same_as<T, TXT> or
+                     std::same_as<T, UNKNOWN>;
+
+template<typename T>
+std::unordered_map<std::string, std::string> analyzeBasic(const std::filesystem::path &filepath) {
+    std::unordered_map<std::string, std::string> basicMetadata;
 
     basicMetadata["File Name"] = filepath.filename();
     basicMetadata["File Size"] = std::to_string(std::filesystem::file_size(filepath));
-    if (std::is_same<T, PNG>::value == true){
+    if (std::is_same<T, PNG>::value == true) {
         basicMetadata["Format"] = "PNG";
-    }
-    else if (std::is_same<T, WAV>::value == true){
+    } else if (std::is_same<T, WAV>::value == true) {
         basicMetadata["Format"] = "WAV";
-    }
-    else {
+    } else {
         basicMetadata["Format"] = "UNKNOWN";
     }
 
     return basicMetadata;
 };
 
-template<typename T>
+template<SUPPORTED_FORMAT T>
 class FileMetadataAnalyzer {
 private:
     std::unordered_map<std::string, std::string> metadata;
+
 public:
-    void analyze(const std::filesystem::path& filepath) {
+    void analyze(const std::filesystem::path &filepath) {
         metadata = analyzeBasic<T>(filepath);
     }
+
     std::unordered_map<std::string, std::string> getMetadata() {
         return metadata;
     }
@@ -84,8 +95,9 @@ template<>
 class FileMetadataAnalyzer<PNG> {
 private:
     std::unordered_map<std::string, std::string> metadata;
+
 public:
-    void analyze(const std::filesystem::path& filepath) {
+    void analyze(const std::filesystem::path &filepath) {
         metadata = analyzeBasic<PNG>(filepath);
 
         std::ifstream file(filepath, std::ios::binary);
@@ -118,6 +130,7 @@ public:
         this->metadata["Filter Method"] = filterMethod;
         this->metadata["Interlace Method"] = interlaceMethod;
     }
+
     std::unordered_map<std::string, std::string> getMetadata() {
         return metadata;
     }
@@ -127,8 +140,9 @@ template<>
 class FileMetadataAnalyzer<WAV> {
 private:
     std::unordered_map<std::string, std::string> metadata;
+
 public:
-    void analyze(const std::filesystem::path& filepath) {
+    void analyze(const std::filesystem::path &filepath) {
         metadata = analyzeBasic<WAV>(filepath);
 
         std::ifstream file(filepath, std::ios::binary);
@@ -145,13 +159,13 @@ public:
         std::string bitDepth = std::to_string(*reinterpret_cast<uint16_t *>(header.bitDepth));
 
 
-
         // Setting Metadata Fields
         this->metadata["Channels"] = channels;
         this->metadata["Sample Rate"] = sampleRate;
         this->metadata["Bit Rate"] = bitRate;
         this->metadata["Bit Depth"] = bitDepth;
     }
+
     std::unordered_map<std::string, std::string> getMetadata() {
         return metadata;
     }
@@ -159,7 +173,7 @@ public:
 
 // Get File Type
 
-FileType getFileType(const std::filesystem::path& filepath) {
+FileType getFileType(const std::filesystem::path &filepath) {
     std::ifstream file(filepath, std::ios::binary);
 
     uint8_t signature[8];
@@ -170,18 +184,15 @@ FileType getFileType(const std::filesystem::path& filepath) {
 
     if (!memcmp(PNGSIGNATURE, signature, sizeof(PNGSIGNATURE))) {
         return FileType::PNG;
-    }
-    else if (!memcmp(WAVSIGNATURE, signature, sizeof(WAVSIGNATURE))) {
+    } else if (!memcmp(WAVSIGNATURE, signature, sizeof(WAVSIGNATURE))) {
         return FileType::WAV;
-    }
-    else {
+    } else {
         return FileType::UNKNOWN;
     }
 }
 
-int main(int argc, char* argv[])
-{
-    if (argc<2) {
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
         std::cerr << "Usage: FileMetadataAnalyzer <filepath>" << std::endl;
         exit(1);
     }
@@ -203,24 +214,22 @@ int main(int argc, char* argv[])
         FileMetadataAnalyzer<PNG> file_metadata_analyzer;
         file_metadata_analyzer.analyze(filepath);
         metadata = file_metadata_analyzer.getMetadata();
-    }
-    else if (fileType == FileType::WAV) {
+    } else if (fileType == FileType::WAV) {
         FileMetadataAnalyzer<WAV> file_metadata_analyzer;
         file_metadata_analyzer.analyze(filepath);
         metadata = file_metadata_analyzer.getMetadata();
-    }
-    else {
+    } else {
         FileMetadataAnalyzer<UNKNOWN> file_metadata_analyzer;
         file_metadata_analyzer.analyze(filepath);
         metadata = file_metadata_analyzer.getMetadata();
     }
 
-    auto display = []<typename K, typename V>(K key, V value){
+    auto display = []<typename K, typename V>(K key, V value) {
         std::cout << key << " : " << value << std::endl;
     };
 
     std::cout << "----------METADATA----------" << std::endl;
-    for (const auto& [key, value] : metadata ) {
+    for (const auto &[key, value]: metadata) {
         display(key, value);
     }
     std::cout << "----------------------------" << std::endl;
